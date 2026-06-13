@@ -56,7 +56,6 @@
     .match-card.has-bet{border-left:3px solid var(--accent);}
     .match-card.win{border-left:3px solid var(--win);}
     .match-card.loss{border-left:3px solid var(--loss);}
-    .match-card.push{border-left:3px solid var(--yellow);}
     .match-meta{font-size:11px;color:var(--muted);min-width:52px;flex-shrink:0;}
     .match-teams{flex:1;display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;min-width:0;}
     .match-team-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -65,7 +64,6 @@
     .bet-pill{font-size:11px;min-width:90px;text-align:right;flex-shrink:0;}
     .bet-pill.win{color:var(--win);}
     .bet-pill.loss{color:var(--loss);}
-    .bet-pill.push{color:var(--yellow);}
     .bet-pill.pend{color:var(--muted);}
     .filter-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
     .filter-btn{padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;font-size:12px;transition:all .15s;white-space:nowrap;}
@@ -107,7 +105,6 @@
     .badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;}
     .badge-win{background:rgba(16,185,129,.15);color:var(--win);}
     .badge-loss{background:rgba(239,68,68,.15);color:var(--loss);}
-    .badge-push{background:rgba(245,158,11,.15);color:var(--yellow);}
     .badge-pend{background:rgba(100,116,139,.15);color:var(--muted);}
     .badge-parlay{background:rgba(139,92,246,.15);color:var(--purple);}
     .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
@@ -559,13 +556,13 @@ function saveParlays(){localStorage.setItem('wc2026_parlays',JSON.stringify(parl
 
 // ── STATS ─────────────────────────────────────────────────────────────────────
 function calcStats(){
-  let sWins=0,sLosses=0,sPushes=0,sStaked=0,sReturned=0;
+  let sWins=0,sLosses=0,sStaked=0,sReturned=0;
   for(const b of Object.values(bets)){
     const s=parseFloat(b.stake)||0,o=parseFloat(b.odds)||1;
     sStaked+=s;
     if(b.result==='win'){sWins++;sReturned+=s*o;}
     else if(b.result==='loss')sLosses++;
-    else if(b.result==='push'){sPushes++;sReturned+=s;}
+    
   }
   let pWins=0,pLosses=0,pStaked=0,pReturned=0;
   for(const p of parlays){
@@ -575,8 +572,8 @@ function calcStats(){
     if(p.result==='win'){pWins++;pReturned+=s*o;}
     else if(p.result==='loss')pLosses++;
   }
-  const sSettled=sWins+sLosses+sPushes;
-  return{sWins,sLosses,sPushes,sStaked,sPnl:sReturned-sStaked,
+  const sSettled=sWins+sLosses;
+  return{sWins,sLosses,sStaked,sPnl:sReturned-sStaked,
     sRate:sSettled?Math.round(sWins/sSettled*100):0,
     pWins,pLosses,pStaked,pPnl:pReturned-pStaked,
     pRate:(pWins+pLosses)?Math.round(pWins/(pWins+pLosses)*100):0,
@@ -586,7 +583,7 @@ function renderStats(){
   const s=calcStats();
   if(mode==='kiddo'){
     const total=Object.keys(bets).length;
-    const settled=s.sWins+s.sLosses+s.sPushes;
+    const settled=s.sWins+s.sLosses;
     const rate=settled?Math.round(s.sWins/settled*100):0;
     document.getElementById('statsBar').innerHTML=`
       <div class="stats-section">
@@ -594,7 +591,6 @@ function renderStats(){
         <div class="stat-pill blue"><div class="val">${total}</div><div class="lbl">Total</div></div>
         <div class="stat-pill green"><div class="val">${s.sWins}</div><div class="lbl">Correct</div></div>
         <div class="stat-pill red"><div class="val">${s.sLosses}</div><div class="lbl">Wrong</div></div>
-        <div class="stat-pill yellow"><div class="val">${s.sPushes}</div><div class="lbl">Push</div></div>
         <div class="stat-pill ${rate>=50?'green':'red'}"><div class="val">${rate}%</div><div class="lbl">Accuracy</div></div>
       </div>`;
     return;
@@ -605,7 +601,6 @@ function renderStats(){
       <div class="stat-pill blue"><div class="val">${Object.keys(bets).length}</div><div class="lbl">Bets</div></div>
       <div class="stat-pill green"><div class="val">${s.sWins}</div><div class="lbl">W</div></div>
       <div class="stat-pill red"><div class="val">${s.sLosses}</div><div class="lbl">L</div></div>
-      <div class="stat-pill yellow"><div class="val">${s.sPushes}</div><div class="lbl">Push</div></div>
       <div class="stat-pill blue"><div class="val">${s.sRate}%</div><div class="lbl">Rate</div></div>
       <div class="stat-pill ${s.sPnl>=0?'green':'red'}"><div class="val">${s.sPnl>=0?'+':''}$${s.sPnl.toFixed(0)}</div><div class="lbl">P&amp;L</div></div>
     </div>
@@ -656,14 +651,14 @@ function renderMatchFilters(){
   document.getElementById('matchFilters').innerHTML=opts.map(o=>`<div class="filter-btn ${matchFilter===o?'active':''}" onclick="setMatchFilter('${o}')">${o}</div>`).join('');
 }
 function setMatchFilter(f){matchFilter=f;renderMatchFilters();renderMatches();}
-function betClass(mid){const b=bets[mid];if(!b)return '';return b.result||'has-bet';}
+function betClass(mid){const b=bets[mid];if(!b)return '';return b.result==='win'?'win':b.result==='loss'?'loss':b.result?'has-bet':'has-bet';}
 function betPillHtml(mid){
   const b=bets[mid];
   if(!b)return `<span class="bet-pill pend">${mode==='kiddo'?'tap to predict':'tap to bet'}</span>`;
-  const cls=b.result==='win'?'win':b.result==='loss'?'loss':b.result==='push'?'push':'pend';
+  const cls=b.result==='win'?'win':b.result==='loss'?'loss':'pend';
   if(mode==='kiddo')return `<span class="bet-pill ${cls}">${b.pick} ${b.result?b.result.toUpperCase():'PEND'}</span>`;
   const s=parseFloat(b.stake)||0,o=parseFloat(b.odds)||1;
-  const pnl=b.result==='win'?`+$${(s*o-s).toFixed(0)}`:b.result==='loss'?`-$${s.toFixed(0)}`:b.result==='push'?'$0':null;
+  const pnl=b.result==='win'?`+$${(s*o-s).toFixed(0)}`:b.result==='loss'?`-$${s.toFixed(0)}`:null;
   const pnlPart=pnl?` · ${pnl}`:''
   return `<span class="bet-pill ${cls}">${b.pick} ${b.result?b.result.toUpperCase():'PEND'}${pnlPart}</span>`;
 }
@@ -698,35 +693,81 @@ function renderKnockout(){
 
 // ── BETS / PREDICTIONS ────────────────────────────────────────────────────────
 let betFilter='All';
+let betSort={col:null,dir:1};
 function renderBetFilters(){
-  document.getElementById('betFilters').innerHTML=['All','Pending','Correct','Wrong','Pushes'].map(f=>{
+  document.getElementById('betFilters').innerHTML=['All','Pending','Correct','Wrong'].map(f=>{
     return `<div class="filter-btn ${betFilter===f?'active':''}" onclick="setBetFilter('${f}')">${f}</div>`;
   }).join('');
 }
 function setBetFilter(f){betFilter=f;renderBetFilters();renderBets();}
+function sortBets(col){
+  if(betSort.col===col)betSort.dir*=-1;
+  else{betSort.col=col;betSort.dir=1;}
+  renderBets();
+}
+function sortIcon(col){
+  if(betSort.col!==col)return '<span style="color:var(--border);font-size:10px"> ⇅</span>';
+  return betSort.dir===1?'<span style="color:var(--accent);font-size:10px"> ↑</span>':'<span style="color:var(--accent);font-size:10px"> ↓</span>';
+}
 function renderBets(){
   let entries=Object.entries(bets).map(([mid,b])=>({mid,b,m:MATCHES.find(x=>x.id==mid)})).filter(x=>x.m);
   if(betFilter==='Pending')entries=entries.filter(x=>!x.b.result);
   else if(betFilter==='Correct')entries=entries.filter(x=>x.b.result==='win');
   else if(betFilter==='Wrong')entries=entries.filter(x=>x.b.result==='loss');
-  else if(betFilter==='Pushes')entries=entries.filter(x=>x.b.result==='push');
+  // sort
+  if(betSort.col){
+    entries.sort((a,b)=>{
+      let va,vb;
+      if(betSort.col==='date'){va=a.m.date;vb=b.m.date;}
+      else if(betSort.col==='match'){va=a.m.home+a.m.away;vb=b.m.home+b.m.away;}
+      else if(betSort.col==='pick'){va=a.b.pick||'';vb=b.b.pick||'';}
+      else if(betSort.col==='stake'){va=parseFloat(a.b.stake)||0;vb=parseFloat(b.b.stake)||0;}
+      else if(betSort.col==='odds'){va=parseFloat(a.b.odds)||0;vb=parseFloat(b.b.odds)||0;}
+      else if(betSort.col==='pnl'){
+        const sa=parseFloat(a.b.stake)||0,oa=parseFloat(a.b.odds)||1;
+        const sb=parseFloat(b.b.stake)||0,ob=parseFloat(b.b.odds)||1;
+        va=a.b.result==='win'?sa*oa-sa:a.b.result==='loss'?-sa:0;
+        vb=b.b.result==='win'?sb*ob-sb:b.b.result==='loss'?-sb:0;
+      }
+      else if(betSort.col==='result'){va=a.b.result||'zzz';vb=b.b.result||'zzz';}
+      if(va<vb)return -betSort.dir;if(va>vb)return betSort.dir;return 0;
+    });
+  }
   const noun=mode==='kiddo'?'predictions':'bets';
   if(!entries.length){document.getElementById('betsContent').innerHTML=`<div class="empty"><div class="empty-icon">🎯</div>${Object.keys(bets).length===0?`No ${noun} yet — tap any match to ${mode==='kiddo'?'predict':'bet'}`:'No entries match this filter'}</div>`;return;}
+  const thStyle='cursor:pointer;user-select:none;white-space:nowrap;';
   if(mode==='kiddo'){
-    document.getElementById('betsContent').innerHTML=`<div class="table-wrap"><table class="bets-table"><thead><tr><th>Date</th><th>Match</th><th>Prediction</th><th>Score</th><th>Result</th><th></th></tr></thead><tbody>${entries.map(({mid,b,m})=>{
+    document.getElementById('betsContent').innerHTML=`<div class="table-wrap"><table class="bets-table"><thead><tr>
+      <th style="${thStyle}" onclick="sortBets('date')">Date${sortIcon('date')}</th>
+      <th style="${thStyle}" onclick="sortBets('match')">Match${sortIcon('match')}</th>
+      <th style="${thStyle}" onclick="sortBets('pick')">Prediction${sortIcon('pick')}</th>
+      <th>Score</th>
+      <th style="${thStyle}" onclick="sortBets('result')">Result${sortIcon('result')}</th>
+      <th></th>
+    </tr></thead><tbody>${entries.map(({mid,b,m})=>{
       const score=(b.score1!==undefined&&b.score1!==''&&b.score2!==undefined&&b.score2!=='')?`${b.score1}-${b.score2}`:'--';
-      const badge=b.result?`<span class="badge badge-${b.result}">${b.result==='win'?'CORRECT':b.result==='loss'?'WRONG':'PUSH'}</span>`:`<span class="badge badge-pend">PEND</span>`;
+      const badge=b.result?`<span class="badge badge-${b.result}">${b.result==='win'?'CORRECT':'WRONG'}</span>`:`<span class="badge badge-pend">PEND</span>`;
       return `<tr><td>${m.date}</td><td>${FLAGS[m.home]||'?'} ${m.home} vs ${FLAGS[m.away]||'?'} ${m.away}</td><td>${b.pick}</td><td>${score}</td><td>${badge}</td><td><button class="btn btn-ghost" style="padding:4px 9px;font-size:11px" onclick="openModal(${mid})">Edit</button></td></tr>`;
     }).join('')}</tbody></table></div>`;
     return;
   }
-  document.getElementById('betsContent').innerHTML=`<div class="table-wrap"><table class="bets-table"><thead><tr><th>Date</th><th>Match</th><th>Pick</th><th>Stake/Odds</th><th>Score</th><th>P&amp;L</th><th>Result</th><th></th></tr></thead><tbody>${entries.map(({mid,b,m})=>{
+  document.getElementById('betsContent').innerHTML=`<div class="table-wrap"><table class="bets-table"><thead><tr>
+    <th style="${thStyle}" onclick="sortBets('date')">Date${sortIcon('date')}</th>
+    <th style="${thStyle}" onclick="sortBets('match')">Match${sortIcon('match')}</th>
+    <th style="${thStyle}" onclick="sortBets('pick')">Pick${sortIcon('pick')}</th>
+    <th style="${thStyle}" onclick="sortBets('stake')">Stake${sortIcon('stake')}</th>
+    <th style="${thStyle}" onclick="sortBets('odds')">Odds${sortIcon('odds')}</th>
+    <th>Score</th>
+    <th style="${thStyle}" onclick="sortBets('pnl')">P&amp;L${sortIcon('pnl')}</th>
+    <th style="${thStyle}" onclick="sortBets('result')">Result${sortIcon('result')}</th>
+    <th></th>
+  </tr></thead><tbody>${entries.map(({mid,b,m})=>{
     const s=parseFloat(b.stake)||0,o=parseFloat(b.odds)||1;
-    const pnl=b.result==='win'?`+$${(s*o-s).toFixed(0)}`:b.result==='loss'?`-$${s.toFixed(0)}`:b.result==='push'?'$0':'--';
+    const pnl=b.result==='win'?`+$${(s*o-s).toFixed(0)}`:b.result==='loss'?`-$${s.toFixed(0)}`:'--';
     const pnlColor=b.result==='win'?'var(--win)':b.result==='loss'?'var(--loss)':'var(--muted)';
     const score=(b.score1!==undefined&&b.score1!==''&&b.score2!==undefined&&b.score2!=='')?`${b.score1}-${b.score2}`:'--';
     const badge=b.result?`<span class="badge badge-${b.result}">${b.result.toUpperCase()}</span>`:`<span class="badge badge-pend">PEND</span>`;
-    return `<tr><td>${m.date}</td><td>${FLAGS[m.home]||'?'} ${m.home} vs ${FLAGS[m.away]||'?'} ${m.away}</td><td>${b.pick}</td><td>$${b.stake}@${b.odds}</td><td>${score}</td><td style="color:${pnlColor};font-weight:600">${pnl}</td><td>${badge}</td><td><button class="btn btn-ghost" style="padding:4px 9px;font-size:11px" onclick="openModal(${mid})">Edit</button></td></tr>`;
+    return `<tr><td>${m.date}</td><td>${FLAGS[m.home]||'?'} ${m.home} vs ${FLAGS[m.away]||'?'} ${m.away}</td><td>${b.pick}</td><td>$${b.stake}</td><td>${b.odds}</td><td>${score}</td><td style="color:${pnlColor};font-weight:600">${pnl}</td><td>${badge}</td><td><button class="btn btn-ghost" style="padding:4px 9px;font-size:11px" onclick="openModal(${mid})">Edit</button></td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 
@@ -844,7 +885,7 @@ function saveBet(){
     const n1=parseInt(s1),n2=parseInt(s2),winner=n1>n2?m.home:n2>n1?m.away:'Draw';
     if(pick===winner)bet.result='win';
     else if(pick==='Draw'&&winner!=='Draw')bet.result='loss';
-    else if(pick!=='Draw'&&winner==='Draw')bet.result='push';
+    // draw = loss if you picked a team
     else bet.result='loss';
   }
   bets[currentMid]=bet;saveBets();closeModal();renderAll();
@@ -859,12 +900,11 @@ function renderStatsPage(){
   const el=document.getElementById('statsPageContent');
   if(mode==='kiddo'){
     const total=Object.keys(bets).length;
-    const settled=s.sWins+s.sLosses+s.sPushes;
+    const settled=s.sWins+s.sLosses;
     const rate=settled?Math.round(s.sWins/settled*100):0;
     const pending=total-settled;
     const wPct=settled?Math.round(s.sWins/settled*100):0;
     const lPct=settled?Math.round(s.sLosses/settled*100):0;
-    const dPct=settled?Math.round(s.sPushes/settled*100):0;
     // Per-pick breakdown
     const pickMap={};
     for(const b of Object.values(bets)){
@@ -882,7 +922,6 @@ function renderStatsPage(){
           <div class="sp-kpi blue"><div class="sp-val">${total}</div><div class="sp-lbl">Total Predictions</div></div>
           <div class="sp-kpi green"><div class="sp-val">${s.sWins}</div><div class="sp-lbl">Correct</div></div>
           <div class="sp-kpi red"><div class="sp-val">${s.sLosses}</div><div class="sp-lbl">Wrong</div></div>
-          <div class="sp-kpi yellow"><div class="sp-val">${s.sPushes}</div><div class="sp-lbl">Push / Draw</div></div>
           <div class="sp-kpi ${rate>=50?'green':'red'}"><div class="sp-val">${rate}%</div><div class="sp-lbl">Accuracy</div></div>
           <div class="sp-kpi"><div class="sp-val">${pending}</div><div class="sp-lbl">Pending</div></div>
         </div>
@@ -897,9 +936,6 @@ function renderStatsPage(){
           <div class="sp-bar-label"><span>❌ Wrong ${lPct}%</span><span>${s.sLosses}</span></div>
           <div class="sp-bar-track"><div class="sp-bar-fill red" style="width:${lPct}%"></div></div>
         </div>
-        <div class="sp-bar-wrap" style="margin-top:10px">
-          <div class="sp-bar-label"><span>🤝 Push ${dPct}%</span><span>${s.sPushes}</span></div>
-          <div class="sp-bar-track"><div class="sp-bar-fill yellow" style="width:${dPct}%"></div></div>
         </div>
       </div>
       ${pickRows?`<div class="sp-card"><div class="sp-card-title">By Pick Type</div>${pickRows}</div>`:''}
@@ -907,7 +943,7 @@ function renderStatsPage(){
     return;
   }
   // ── Bettor mode ──
-  const sSettled=s.sWins+s.sLosses+s.sPushes;
+  const sSettled=s.sWins+s.sLosses;
   const pSettled=s.pWins+s.pLosses;
   const sRoi=s.sStaked?Math.round(s.sPnl/s.sStaked*100):0;
   const pRoi=s.pStaked?Math.round(s.pPnl/s.pStaked*100):0;
@@ -917,13 +953,13 @@ function renderStatsPage(){
   // Win/Loss bar percents
   const sWPct=sSettled?Math.round(s.sWins/sSettled*100):0;
   const sLPct=sSettled?Math.round(s.sLosses/sSettled*100):0;
-  const sPPct=sSettled?Math.round(s.sPushes/sSettled*100):0;
+  
   const pWPct=pSettled?Math.round(s.pWins/pSettled*100):0;
   const pLPct=pSettled?Math.round(s.pLosses/pSettled*100):0;
   // Best / worst single bets
   const betEntries=Object.entries(bets).map(([mid,b])=>{
     const st=parseFloat(b.stake)||0,od=parseFloat(b.odds)||1;
-    const pnl=b.result==='win'?st*od-st:b.result==='loss'?-st:b.result==='push'?0:null;
+    const pnl=b.result==='win'?st*od-st:b.result==='loss'?-st:null;
     const m=MATCHES.find(x=>x.id==mid);
     return{mid,b,m,pnl};
   }).filter(x=>x.pnl!==null);
@@ -947,7 +983,6 @@ function renderStatsPage(){
         <div class="sp-kpi blue"><div class="sp-val">${Object.keys(bets).length}</div><div class="sp-lbl">Total Bets</div></div>
         <div class="sp-kpi green"><div class="sp-val">${s.sWins}</div><div class="sp-lbl">Wins</div></div>
         <div class="sp-kpi red"><div class="sp-val">${s.sLosses}</div><div class="sp-lbl">Losses</div></div>
-        <div class="sp-kpi yellow"><div class="sp-val">${s.sPushes}</div><div class="sp-lbl">Pushes</div></div>
         <div class="sp-kpi blue"><div class="sp-val">${s.sRate}%</div><div class="sp-lbl">Win Rate</div></div>
         <div class="sp-kpi ${s.sPnl>=0?'green':'red'}"><div class="sp-val">${pnlStr(s.sPnl)}</div><div class="sp-lbl">P&amp;L</div></div>
         <div class="sp-kpi"><div class="sp-val">$${s.sStaked.toFixed(0)}</div><div class="sp-lbl">Staked</div></div>
@@ -955,12 +990,12 @@ function renderStatsPage(){
         <div class="sp-kpi"><div class="sp-val">${sPend}</div><div class="sp-lbl">Pending</div></div>
       </div>
       ${sSettled?`<div class="sp-bar-wrap" style="margin-top:14px">
-        <div class="sp-bar-label"><span>W ${sWPct}%</span><span>L ${sLPct}%</span><span>P ${sPPct}%</span></div>
+        <div class="sp-bar-label"><span>W ${sWPct}%</span><span>L ${sLPct}%</span></div>
         <div class="sp-bar-track" style="height:12px">
           <div style="display:flex;height:100%">
             <div style="width:${sWPct}%;background:var(--win);"></div>
             <div style="width:${sLPct}%;background:var(--loss);"></div>
-            <div style="width:${sPPct}%;background:var(--yellow);"></div>
+            
           </div>
         </div>
       </div>`:''}
