@@ -975,6 +975,23 @@ function renderStatsPage(){
   const botBets=sorted.slice(-3).reverse();
   function matchLabel(x){return x.m?`${x.m.home} vs ${x.m.away}`:`Match #${x.mid}`;}
   function pnlStr(v){return(v>=0?'+$':'-$')+Math.abs(v).toFixed(0);}
+  // Others stats
+  let othersHtml='';
+  if(others.length){
+    const oWins=others.filter(o=>o.result==='win').length;
+    const oLosses=others.filter(o=>o.result==='loss').length;
+    const oSettled=oWins+oLosses;
+    const oPend=others.length-oSettled;
+    const oStaked=others.reduce((a,o)=>a+(parseFloat(o.stake)||0),0);
+    const oReturned=others.reduce((a,o)=>{const s=parseFloat(o.stake)||0,od=parseFloat(o.odds)||1;return a+(o.result==='win'?s*od:0);},0);
+    const oPnl=oReturned-oStaked;
+    const oRoi=oStaked?Math.round(oPnl/oStaked*100):0;
+    const oRate=oSettled?Math.round(oWins/oSettled*100):0;
+    const oWPct=oSettled?Math.round(oWins/oSettled*100):0;
+    const oLPct=oSettled?Math.round(oLosses/oSettled*100):0;
+    const oBarHtml=oSettled?`<div class="sp-bar-wrap" style="margin-top:14px"><div class="sp-bar-label"><span>W ${oWPct}%</span><span>L ${oLPct}%</span></div><div class="sp-bar-track" style="height:12px"><div style="display:flex;height:100%"><div style="width:${oWPct}%;background:var(--win);"></div><div style="width:${oLPct}%;background:var(--loss);"></div></div></div></div>`:'';
+    othersHtml=`<div class="sp-card"><div class="sp-card-title">Other Bets</div><div class="sp-grid"><div class="sp-kpi blue"><div class="sp-val">${others.length}</div><div class="sp-lbl">Total Bets</div></div><div class="sp-kpi green"><div class="sp-val">${oWins}</div><div class="sp-lbl">Wins</div></div><div class="sp-kpi red"><div class="sp-val">${oLosses}</div><div class="sp-lbl">Losses</div></div><div class="sp-kpi blue"><div class="sp-val">${oRate}%</div><div class="sp-lbl">Win Rate</div></div><div class="sp-kpi ${oPnl>=0?'green':'red'}"><div class="sp-val">${oPnl>=0?'+$':'-$'}${Math.abs(oPnl).toFixed(0)}</div><div class="sp-lbl">P&L</div></div><div class="sp-kpi"><div class="sp-val">$${oStaked.toFixed(0)}</div><div class="sp-lbl">Staked</div></div><div class="sp-kpi ${oRoi>=0?'green':'red'}"><div class="sp-val">${oRoi}%</div><div class="sp-lbl">ROI</div></div><div class="sp-kpi"><div class="sp-val">${oPend}</div><div class="sp-lbl">Pending</div></div></div>${oBarHtml}</div>`;
+  }
   el.innerHTML=`
     <div class="sp-card">
       <div class="sp-card-title">Overall P&L</div>
@@ -1038,42 +1055,7 @@ function renderStatsPage(){
       ${botBets.map(x=>`<div class="sp-row"><span class="sp-row-lbl">${matchLabel(x)} · ${x.b.pick}</span><span style="color:var(--loss);font-weight:700">${pnlStr(x.pnl)}</span></div>`).join('')}
     </div>`:''}
 
-    \${(()=>{
-      const oWins=others.filter(o=>o.result==='win').length;
-      const oLosses=others.filter(o=>o.result==='loss').length;
-      const oSettled=oWins+oLosses;
-      const oPend=others.length-oSettled;
-      const oStaked=others.reduce((a,o)=>a+(parseFloat(o.stake)||0),0);
-      const oReturned=others.reduce((a,o)=>{const s=parseFloat(o.stake)||0,od=parseFloat(o.odds)||1;return a+(o.result==='win'?s*od:0);},0);
-      const oPnl=oReturned-oStaked;
-      const oRoi=oStaked?Math.round(oPnl/oStaked*100):0;
-      const oRate=oSettled?Math.round(oWins/oSettled*100):0;
-      const oWPct=oSettled?Math.round(oWins/oSettled*100):0;
-      const oLPct=oSettled?Math.round(oLosses/oSettled*100):0;
-      if(!others.length)return '';
-      return `<div class="sp-card">
-        <div class="sp-card-title">Other Bets</div>
-        <div class="sp-grid">
-          <div class="sp-kpi blue"><div class="sp-val">\${others.length}</div><div class="sp-lbl">Total Bets</div></div>
-          <div class="sp-kpi green"><div class="sp-val">\${oWins}</div><div class="sp-lbl">Wins</div></div>
-          <div class="sp-kpi red"><div class="sp-val">\${oLosses}</div><div class="sp-lbl">Losses</div></div>
-          <div class="sp-kpi blue"><div class="sp-val">\${oRate}%</div><div class="sp-lbl">Win Rate</div></div>
-          <div class="sp-kpi \${oPnl>=0?'green':'red'}"><div class="sp-val">\${oPnl>=0?'+$':'-$'}\${Math.abs(oPnl).toFixed(0)}</div><div class="sp-lbl">P&amp;L</div></div>
-          <div class="sp-kpi"><div class="sp-val">$\${oStaked.toFixed(0)}</div><div class="sp-lbl">Staked</div></div>
-          <div class="sp-kpi \${oRoi>=0?'green':'red'}"><div class="sp-val">\${oRoi}%</div><div class="sp-lbl">ROI</div></div>
-          <div class="sp-kpi"><div class="sp-val">\${oPend}</div><div class="sp-lbl">Pending</div></div>
-        </div>
-        \${oSettled?`<div class="sp-bar-wrap" style="margin-top:14px">
-          <div class="sp-bar-label"><span>W \${oWPct}%</span><span>L \${oLPct}%</span></div>
-          <div class="sp-bar-track" style="height:12px">
-            <div style="display:flex;height:100%">
-              <div style="width:\${oWPct}%;background:var(--win);"></div>
-              <div style="width:\${oLPct}%;background:var(--loss);"></div>
-            </div>
-          </div>
-        </div>`:''}
-      </div>`;
-    })()}
+    ${othersHtml}
   `;
 }
 
