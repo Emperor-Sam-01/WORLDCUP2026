@@ -259,6 +259,13 @@
   </div>
   <div id="parlayList"></div>
 </div>
+<div class="page" id="page-others">
+  <div class="parlay-header">
+    <div><div style="font-weight:700;font-size:15px">Other Bets</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Correct score, first goal, total goals &amp; more</div></div>
+    <button class="btn btn-primary" onclick="openOtherBetModal()">+ New Bet</button>
+  </div>
+  <div id="otherBetList"></div>
+</div>
 <div class="page" id="page-stats"><div class="stats-page" id="statsPageContent"></div></div>
 <div class="page" id="page-teams">
   <div class="teams-controls">
@@ -540,7 +547,7 @@ function renderNav(){
   const isKiddo=mode==='kiddo';
   const tabs=isKiddo
     ?[['groups','Groups'],['matches','Matches'],['knockout','Knockout'],['bets','Predictions'],['teams','Teams'],['stats','Stats']]
-    :[['groups','Groups'],['matches','Matches'],['knockout','Knockout'],['bets','Bets'],['parlays','Parlays'],['teams','Teams'],['stats','Stats']];
+    :[['groups','Groups'],['matches','Matches'],['knockout','Knockout'],['bets','Bets'],['parlays','Parlays'],['others','Others'],['teams','Teams'],['stats','Stats']];
   const active=document.querySelector('.nav-tab.active');
   const currentTab=active?active.dataset.tab:'groups';
   document.getElementById('navTabs').innerHTML=tabs.map(([id,label])=>
@@ -1030,7 +1037,233 @@ function renderStatsPage(){
       <div class="sp-card-title">Worst Bets</div>
       ${botBets.map(x=>`<div class="sp-row"><span class="sp-row-lbl">${matchLabel(x)} · ${x.b.pick}</span><span style="color:var(--loss);font-weight:700">${pnlStr(x.pnl)}</span></div>`).join('')}
     </div>`:''}
+
+    \${(()=>{
+      const oWins=others.filter(o=>o.result==='win').length;
+      const oLosses=others.filter(o=>o.result==='loss').length;
+      const oSettled=oWins+oLosses;
+      const oPend=others.length-oSettled;
+      const oStaked=others.reduce((a,o)=>a+(parseFloat(o.stake)||0),0);
+      const oReturned=others.reduce((a,o)=>{const s=parseFloat(o.stake)||0,od=parseFloat(o.odds)||1;return a+(o.result==='win'?s*od:0);},0);
+      const oPnl=oReturned-oStaked;
+      const oRoi=oStaked?Math.round(oPnl/oStaked*100):0;
+      const oRate=oSettled?Math.round(oWins/oSettled*100):0;
+      const oWPct=oSettled?Math.round(oWins/oSettled*100):0;
+      const oLPct=oSettled?Math.round(oLosses/oSettled*100):0;
+      if(!others.length)return '';
+      return `<div class="sp-card">
+        <div class="sp-card-title">Other Bets</div>
+        <div class="sp-grid">
+          <div class="sp-kpi blue"><div class="sp-val">\${others.length}</div><div class="sp-lbl">Total Bets</div></div>
+          <div class="sp-kpi green"><div class="sp-val">\${oWins}</div><div class="sp-lbl">Wins</div></div>
+          <div class="sp-kpi red"><div class="sp-val">\${oLosses}</div><div class="sp-lbl">Losses</div></div>
+          <div class="sp-kpi blue"><div class="sp-val">\${oRate}%</div><div class="sp-lbl">Win Rate</div></div>
+          <div class="sp-kpi \${oPnl>=0?'green':'red'}"><div class="sp-val">\${oPnl>=0?'+$':'-$'}\${Math.abs(oPnl).toFixed(0)}</div><div class="sp-lbl">P&amp;L</div></div>
+          <div class="sp-kpi"><div class="sp-val">$\${oStaked.toFixed(0)}</div><div class="sp-lbl">Staked</div></div>
+          <div class="sp-kpi \${oRoi>=0?'green':'red'}"><div class="sp-val">\${oRoi}%</div><div class="sp-lbl">ROI</div></div>
+          <div class="sp-kpi"><div class="sp-val">\${oPend}</div><div class="sp-lbl">Pending</div></div>
+        </div>
+        \${oSettled?`<div class="sp-bar-wrap" style="margin-top:14px">
+          <div class="sp-bar-label"><span>W \${oWPct}%</span><span>L \${oLPct}%</span></div>
+          <div class="sp-bar-track" style="height:12px">
+            <div style="display:flex;height:100%">
+              <div style="width:\${oWPct}%;background:var(--win);"></div>
+              <div style="width:\${oLPct}%;background:var(--loss);"></div>
+            </div>
+          </div>
+        </div>`:''}
+      </div>`;
+    })()}
   `;
+}
+
+
+// ── OTHER BETS ────────────────────────────────────────────────────────────────
+let others=JSON.parse(localStorage.getItem('wc2026_others')||'[]');
+function saveOthers(){localStorage.setItem('wc2026_others',JSON.stringify(others));}
+
+const OTHER_BET_TYPES=['Correct Score','First to Goal','Total Goals','Anytime Scorer','Both Teams to Score','Half-Time Result','Custom...'];
+let editingOtherIdx=null;
+let otherSelectedMatchId=null;
+let otherSelectedResult='';
+
+function renderOthers(){
+  const el=document.getElementById('otherBetList');
+  if(!others.length){el.innerHTML='<div class="empty"><div class="empty-icon">🎯</div>No other bets yet — tap "+ New Bet"</div>';return;}
+  el.innerHTML=others.map((o,idx)=>{
+    const m=MATCHES.find(x=>x.id==o.matchId);
+    const matchLabel=m?`${FLAGS[m.home]||'?'} ${m.home} vs ${FLAGS[m.away]||'?'} ${m.away}`:`Match #${o.matchId}`;
+    const stake=parseFloat(o.stake)||0,odds=parseFloat(o.odds)||1;
+    const pnl=o.result==='win'?`+$${(stake*odds-stake).toFixed(0)}`:o.result==='loss'?`-$${stake.toFixed(0)}`:'--';
+    const pnlColor=o.result==='win'?'var(--win)':o.result==='loss'?'var(--loss)':'var(--muted)';
+    const badge=o.result==='win'?'<span class="badge badge-win">WIN</span>':o.result==='loss'?'<span class="badge badge-loss">LOSS</span>':'<span class="badge badge-pend">PENDING</span>';
+    const cardCls=o.result==='win'?'win':o.result==='loss'?'loss':'';
+    return `<div class="parlay-card ${cardCls}" style="margin-bottom:10px">
+      <div class="parlay-card-header">
+        <div>
+          <span class="badge badge-parlay">${o.betType||'Other'}</span>
+          <span style="margin-left:8px;font-size:13px;color:var(--muted)">${matchLabel}${m?' · '+m.date:''}</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">${badge}<button class="btn btn-ghost" style="padding:4px 9px;font-size:11px" onclick="editOtherBet(${idx})">Edit</button></div>
+      </div>
+      <div style="padding:8px 0 4px;font-size:13px">${o.note||'—'}</div>
+      <div style="display:flex;gap:16px;font-size:13px;margin-top:4px">
+        <span>Stake: <strong>$${o.stake||0}</strong></span>
+        <span>Odds: <strong>${o.odds||'—'}</strong></span>
+        <span style="color:${pnlColor};font-weight:700">${pnl}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openOtherBetModal(){
+  editingOtherIdx=null;otherSelectedMatchId=null;otherSelectedResult='';
+  document.getElementById('otherBetTitle').textContent='New Other Bet';
+  document.getElementById('otherMatchSearch').value='';
+  document.getElementById('otherMatchResults').innerHTML='';
+  document.getElementById('otherMatchSelected').style.display='none';
+  document.getElementById('otherBetNote').value='';
+  document.getElementById('otherStake').value='';
+  document.getElementById('otherOdds').value='';
+  document.getElementById('otherResultField').style.display='none';
+  document.getElementById('otherResultToggleBtn').style.display='none';
+  document.getElementById('otherDeleteBtn').style.display='none';
+  renderOtherBetTypes(null);
+  updateOtherResultButtons();
+  document.getElementById('otherBetOverlay').classList.add('open');
+}
+
+function editOtherBet(idx){
+  editingOtherIdx=idx;
+  const o=others[idx];
+  otherSelectedMatchId=o.matchId;
+  otherSelectedResult=o.result||'';
+  document.getElementById('otherBetTitle').textContent='Edit Other Bet';
+  document.getElementById('otherMatchSearch').value='';
+  document.getElementById('otherMatchResults').innerHTML='';
+  const m=MATCHES.find(x=>x.id==o.matchId);
+  if(m){
+    document.getElementById('otherMatchSelected').style.display='';
+    document.getElementById('otherMatchSelected').textContent=`${FLAGS[m.home]||'?'} ${m.home} vs ${FLAGS[m.away]||'?'} ${m.away} · ${m.date}`;
+  } else {
+    document.getElementById('otherMatchSelected').style.display='none';
+  }
+  document.getElementById('otherBetNote').value=o.note||'';
+  document.getElementById('otherStake').value=o.stake||'';
+  document.getElementById('otherOdds').value=o.odds||'';
+  document.getElementById('otherResultField').style.display='';
+  document.getElementById('otherResultToggleBtn').style.display='';
+  document.getElementById('otherResultToggleBtn').textContent='Hide Result';
+  document.getElementById('otherDeleteBtn').style.display='';
+  renderOtherBetTypes(o.betType);
+  updateOtherResultButtons();
+  document.getElementById('otherBetOverlay').classList.add('open');
+}
+
+function renderOtherBetTypes(selected){
+  const row=document.getElementById('otherBetTypeRow');
+  const customInp=document.getElementById('otherBetTypeCustom');
+  row.innerHTML=OTHER_BET_TYPES.map(t=>`<button class="leg-pick-btn ${selected===t||(t==='Custom...'&&selected&&!OTHER_BET_TYPES.slice(0,-1).includes(selected))?'selected':''}" onclick="selectOtherBetType('${t}')">${t}</button>`).join('');
+  const isCustom=selected&&!OTHER_BET_TYPES.slice(0,-1).includes(selected);
+  customInp.style.display=isCustom?'':'none';
+  if(isCustom)customInp.value=selected;
+}
+
+function selectOtherBetType(t){
+  const customInp=document.getElementById('otherBetTypeCustom');
+  customInp.style.display=t==='Custom...'?'':'none';
+  if(t==='Custom...')customInp.value='';
+  renderOtherBetTypes(t==='Custom...'?null:t);
+  // re-render with Custom... selected state
+  if(t==='Custom...'){
+    document.querySelectorAll('#otherBetTypeRow .leg-pick-btn').forEach((b,i)=>{
+      b.classList.toggle('selected',OTHER_BET_TYPES[i]==='Custom...');
+    });
+    customInp.focus();
+  }
+}
+
+function getOtherBetType(){
+  const btns=document.querySelectorAll('#otherBetTypeRow .leg-pick-btn');
+  let sel=null;
+  btns.forEach((b,i)=>{if(b.classList.contains('selected'))sel=OTHER_BET_TYPES[i];});
+  if(sel==='Custom...')return document.getElementById('otherBetTypeCustom').value.trim()||'Custom';
+  return sel;
+}
+
+function renderOtherMatchSearch(){
+  const q=document.getElementById('otherMatchSearch').value.toLowerCase().trim();
+  const el=document.getElementById('otherMatchResults');
+  if(!q){el.innerHTML='';return;}
+  const ms=MATCHES.filter(m=>(m.home+' '+m.away+' '+m.date+' '+m.stage).toLowerCase().includes(q)).slice(0,6);
+  if(!ms.length){el.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px">No matches found</div>';return;}
+  el.innerHTML=ms.map(m=>`<div class="match-option" onclick="selectOtherMatch(${m.id})">${FLAGS[m.home]||'?'} ${m.home} vs ${FLAGS[m.away]||'?'} ${m.away} <span style="color:var(--muted);font-size:11px">${m.date}</span></div>`).join('');
+}
+
+function selectOtherMatch(mid){
+  otherSelectedMatchId=mid;
+  const m=MATCHES.find(x=>x.id==mid);
+  document.getElementById('otherMatchSearch').value='';
+  document.getElementById('otherMatchResults').innerHTML='';
+  document.getElementById('otherMatchSelected').style.display='';
+  document.getElementById('otherMatchSelected').textContent=`${FLAGS[m.home]||'?'} ${m.home} vs ${FLAGS[m.away]||'?'} ${m.away} · ${m.date}`;
+}
+
+function setOtherResult(r){
+  otherSelectedResult=r;
+  updateOtherResultButtons();
+}
+
+function updateOtherResultButtons(){
+  const r=otherSelectedResult;
+  const win=document.getElementById('otherResWin'),loss=document.getElementById('otherResLoss'),pend=document.getElementById('otherResPend');
+  if(!win)return;
+  win.className='btn'+(r==='win'?' btn-primary':'');
+  win.style.background=r==='win'?'var(--win)':'';
+  win.style.borderColor=r==='win'?'var(--win)':'';
+  loss.className='btn'+(r==='loss'?' btn-danger':'');
+  loss.style.background=r==='loss'?'var(--loss)':'';
+  loss.style.borderColor=r==='loss'?'var(--loss)':'';
+  pend.className='btn btn-ghost'+(r===''?' active':'');
+}
+
+function toggleOtherResult(){
+  const f=document.getElementById('otherResultField');
+  const btn=document.getElementById('otherResultToggleBtn');
+  const show=f.style.display==='none';
+  f.style.display=show?'':'none';
+  btn.textContent=show?'Hide Result':'Record Result';
+}
+
+function saveOtherBet(){
+  if(!otherSelectedMatchId){alert('Select a match first');return;}
+  const betType=getOtherBetType();
+  if(!betType){alert('Select a bet type');return;}
+  const note=document.getElementById('otherBetNote').value.trim();
+  const stake=document.getElementById('otherStake').value;
+  const odds=document.getElementById('otherOdds').value;
+  const entry={matchId:otherSelectedMatchId,betType,note,stake,odds,result:otherSelectedResult||undefined};
+  if(editingOtherIdx!==null)others[editingOtherIdx]=entry;
+  else others.push(entry);
+  saveOthers();
+  closeOtherBetModal();
+  renderOthers();
+  renderStatsPage();
+}
+
+function deleteOtherBet(){
+  if(editingOtherIdx===null)return;
+  if(!confirm('Delete this bet?'))return;
+  others.splice(editingOtherIdx,1);
+  saveOthers();
+  closeOtherBetModal();
+  renderOthers();
+  renderStatsPage();
+}
+
+function closeOtherBetModal(e){
+  if(e&&e.target!==document.getElementById('otherBetOverlay'))return;
+  document.getElementById('otherBetOverlay').classList.remove('open');
 }
 
 function switchTab(tab){
@@ -1043,6 +1276,7 @@ function switchTab(tab){
   if(tab==='bets'){renderBetFilters();renderBets();}
   if(tab==='parlays')renderParlays();
   if(tab==='teams'){initTeamsControls();renderTeams();}
+  if(tab==='others')renderOthers();
   if(tab==='stats')renderStatsPage();
 }
 function renderAll(){
@@ -1066,5 +1300,50 @@ if(mode){
   renderMatches();
 }
 </script>
+
+<!-- OTHER BET MODAL -->
+<div class="overlay" id="otherBetOverlay" onclick="closeOtherBetModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-drag"></div>
+    <div class="modal-title" id="otherBetTitle">New Other Bet</div>
+    <div class="field">
+      <label>Search Match</label>
+      <input type="text" id="otherMatchSearch" placeholder="Team name or date..." oninput="renderOtherMatchSearch()" autocomplete="off" />
+      <div id="otherMatchResults" style="margin-top:6px;display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;"></div>
+      <div id="otherMatchSelected" style="display:none;margin-top:6px;background:var(--surface2);border-radius:8px;padding:8px 10px;font-size:13px;"></div>
+    </div>
+    <div class="field">
+      <label>Bet Type</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px" id="otherBetTypeRow"></div>
+      <input type="text" id="otherBetTypeCustom" placeholder="Describe your bet..." style="display:none" />
+    </div>
+    <div class="field">
+      <label>Description / Pick</label>
+      <input type="text" id="otherBetNote" placeholder="e.g. Brazil 2-1 Argentina, Under 2.5 goals..." />
+    </div>
+    <div class="field">
+      <label>Stake (SGD)</label>
+      <input type="number" id="otherStake" min="0" step="1" placeholder="0" inputmode="numeric" />
+    </div>
+    <div class="field">
+      <label>Odds (decimal)</label>
+      <input type="number" id="otherOdds" min="1" step="0.01" placeholder="1.00" inputmode="decimal" />
+    </div>
+    <div class="field" id="otherResultField" style="display:none">
+      <label>Result</label>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="otherResWin" onclick="setOtherResult('win')" style="flex:1">Win</button>
+        <button class="btn" id="otherResLoss" onclick="setOtherResult('loss')" style="flex:1">Loss</button>
+        <button class="btn" id="otherResPend" onclick="setOtherResult('')" style="flex:1">Pending</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveOtherBet()">Save</button>
+      <button class="btn btn-ghost" id="otherResultToggleBtn" onclick="toggleOtherResult()" style="display:none">Record Result</button>
+      <button class="btn btn-danger" id="otherDeleteBtn" onclick="deleteOtherBet()" style="display:none">Delete</button>
+      <button class="btn btn-ghost" onclick="closeOtherBetModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
